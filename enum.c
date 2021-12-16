@@ -7,16 +7,45 @@
 
 #define MSG(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
 
-void enumerateModeResources(int fd, const drmModeResPtr res) {
+static char * vendors[] = {
+	// #define DRM_FORMAT_MOD_VENDOR_NONE 0
+	"NONE",
+	// #define DRM_FORMAT_MOD_VENDOR_INTEL 0x01
+	"INTEL",
+	// #define DRM_FORMAT_MOD_VENDOR_AMD 0x02
+	"AMD",
+	// #define DRM_FORMAT_MOD_VENDOR_NVIDIA 0x03
+	"NVIDIA",
+	// #define DRM_FORMAT_MOD_VENDOR_SAMSUNG 0x04
+	"SAMSUNG",
+	// #define DRM_FORMAT_MOD_VENDOR_QCOM 0x05
+	"QCOM",
+	// #define DRM_FORMAT_MOD_VENDOR_VIVANTE 0x06
+	"VIVANTE",
+	// #define DRM_FORMAT_MOD_VENDOR_BROADCOM 0x07
+	"BROADCOM",
+	// #define DRM_FORMAT_MOD_VENDOR_ARM 0x08
+	"ARM",
+	// #define DRM_FORMAT_MOD_VENDOR_ALLWINNER 0x09
+	"ALLWINNER",
+	// #define DRM_FORMAT_MOD_VENDOR_AMLOGIC 0x0a
+	"AMLOGIC"
+};
+
+void
+enumerateModeResources(int fd, const drmModeResPtr res)
+{
 	MSG("\tcount_fbs = %d", res->count_fbs);
 	for (int i = 0; i < res->count_fbs; ++i)
 		MSG("\t\t%d: 0x%x", i, res->fbs[i]);
 
 	MSG("\tcount_crtcs = %d", res->count_crtcs);
-	for (int i = 0; i < res->count_crtcs; ++i) {
+	for (int i = 0; i < res->count_crtcs; ++i)
+	{
 		MSG("\t\t%d: 0x%x", i, res->crtcs[i]);
 		drmModeCrtcPtr crtc = drmModeGetCrtc(fd, res->crtcs[i]);
-		if (crtc) {
+		if (crtc)
+		{
 			MSG("\t\t\tbuffer_id = 0x%x gamma_size = %d", crtc->buffer_id, crtc->gamma_size);
 			MSG("\t\t\t(%u %u %u %u) %d",
 				crtc->x, crtc->y, crtc->width, crtc->height, crtc->mode_valid);
@@ -26,10 +55,12 @@ void enumerateModeResources(int fd, const drmModeResPtr res) {
 	}
 
 	MSG("\tcount_connectors = %d", res->count_connectors);
-	for (int i = 0; i < res->count_connectors; ++i) {
+	for (int i = 0; i < res->count_connectors; ++i)
+	{
 		MSG("\t\t%d: 0x%x", i, res->connectors[i]);
 		drmModeConnectorPtr conn = drmModeGetConnectorCurrent(fd, res->connectors[i]);
-		if (conn) {
+		if (conn)
+		{
 			drmModeFreeConnector(conn);
 		}
 	}
@@ -42,7 +73,9 @@ void enumerateModeResources(int fd, const drmModeResPtr res) {
 	MSG("\theight: %u .. %u", res->min_height, res->max_height);
 }
 
-int main(int argc, const char *argv[]) {
+int
+main(int argc, const char *argv[])
+{
 	const int available = drmAvailable();
 	if (!available)
 		return 1;
@@ -142,16 +175,26 @@ int main(int argc, const char *argv[]) {
 	MSG("count_fbs = %d", count_fbs);
 	for (int i = 0; i < count_fbs; ++i) {
 		MSG("\t%d: %#x", i, fbs[i]);
+
 		drmModeFBPtr fb = drmModeGetFB(fd, fbs[i]);
-		if (!fb) {
-			MSG("\t\tERROR");
-			continue;
+		if (fb) {
+			MSG("\t\twidth=%u height=%u pitch=%u bpp=%u depth=%u handle=%#x",
+				fb->width, fb->height, fb->pitch, fb->bpp, fb->depth, fb->handle);
+			drmModeFreeFB(fb);
 		}
 
-		MSG("\t\twidth=%u height=%u pitch=%u bpp=%u depth=%u handle=%#x",
-			fb->width, fb->height, fb->pitch, fb->bpp, fb->depth, fb->handle);
-
-		drmModeFreeFB(fb);
+		drmModeFB2Ptr fb2 = drmModeGetFB2(fd, fbs[i]);
+		if (fb2) {
+			uint32_t pf = fb2->pixel_format;
+			uint64_t mod = fb2->modifier;
+			MSG("\t\twidth=%u height=%u pixfmt=%#x %c%c%c%c mod=%#lx %s%lu flags=%#x",
+				fb2->width, fb2->height,
+				pf, pf & 0xff, (pf >> 8) & 0xff, (pf >> 16) & 0xff, (pf >> 24) & 0xff,
+				mod, vendors[(mod >> 56) & 0xff], (mod & 0x00ffffffffffffffUL),
+				fb2->flags
+			);
+			drmModeFreeFB2(fb2);
+		}
 	}
 
 	close(fd);
